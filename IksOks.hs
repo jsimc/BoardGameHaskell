@@ -1,11 +1,15 @@
-module OtherGameState (
+module IksOks (
     Tabla(Tabla),
     Polje,
     Igrac (X, O, Prazno),
     proveriZavrsnoStanje,
     odigrajPotez,
     koJeNaPotezu,
-    mojaTabla
+    mojaTabla,
+    makeIksOksTableFromChars,
+    brojPoteza,
+    makeIksOksTableFromPolje,
+    stabloPoteza
 )
 where
 import Data.List ( transpose )
@@ -29,6 +33,14 @@ instance Show Igrac where
     show X = "X"
     show O = "O"
     show Prazno = " "
+
+instance Read Igrac where
+  readsPrec _ input =case input of
+    "X" -> [(X, "")]
+    "O" -> [(O, "")]
+    " " -> [(Prazno, "")]
+    _ -> []
+
 
 instance Show a => Show (Tabla a) where
     show (Tabla rows) = "\n" ++ unlines (map showRow rows)
@@ -132,16 +144,4 @@ stabloPoteza tabla
     | proveriZavrsnoStanje tabla = Node tabla []
     | otherwise = Node tabla (map stabloPoteza (validniPoteziTable tabla))
 ------------------------------------------------------------------------
-{-
-applyMove :: Tabla Igrac -> (Int, Int) -> GameState (Tabla Igrac) Bool
-applyMove (Tabla tabla) pozicija = GameState ( const
-  (proveriZavrsnoStanje (Tabla tabla),
-   odigrajPotez pozicija (koJeNaPotezu tabla)))
--}
-{-
-tmp :: Tabla Igrac -> Bool
-tmp (Tabla tb) = any proveriNiz tb 
 
-tmpTranspose :: Tabla Igrac -> Tabla Igrac
-tmpTranspose (Tabla tb)= Tabla (transpose tb)
--}

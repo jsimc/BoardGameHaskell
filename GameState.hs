@@ -1,10 +1,14 @@
 
 module GameState (
     GameState (runState),
-    GameStateHistory (runStateHistory)
+    GameStateHistory (runStateHistory),
+    applyMovesH,
+    applyMoves
 )
 where
-import OtherGameState (Tabla (..), Igrac (..), mojaTabla, proveriZavrsnoStanje, odigrajPotez, koJeNaPotezu)
+--import OtherGameState (Tabla (..), Igrac (..), mojaTabla, proveriZavrsnoStanje, odigrajPotez, koJeNaPotezu)
+import Control.Monad (foldM)
+import IksOks (Tabla (..), Igrac (..), mojaTabla, proveriZavrsnoStanje, odigrajPotez, koJeNaPotezu)
 
 newtype GameState s a = GameState {runState :: s -> (a, s)}
 
@@ -38,63 +42,78 @@ evalGameState act = fst . runState act
 execGameState :: GameState s a -> s -> s
 execGameState act = snd . runState act
 -------------------------------------------------------------------------------------
-newtype GameStateHistory s a = GameStateHistory {runStateHistory :: s -> (a, s)}
-instance (Monoid s) => Functor (GameStateHistory s) where
+newtype GameStateHistory s a = GameStateHistory {runStateHistory :: s -> (a, [s])}
+instance Functor (GameStateHistory s) where
     fmap f (GameStateHistory g) = GameStateHistory $ \s ->
         let (a, s') = g s
         in (f a, s')
 
-instance (Monoid s) => Applicative (GameStateHistory s) where
-  pure a = GameStateHistory $ \s -> (a, s)
+instance Applicative (GameStateHistory s) where
+  pure a = GameStateHistory $ \s -> (a, [s])
   (GameStateHistory f) <*> (GameStateHistory g) = GameStateHistory $ \s ->
     let
         (a1, s1) = f s
-        (a2, s2) = g s1
-    in (a1 a2, s2)
+        (a2, s2) = g $ head s1
+    in (a1 a2, s1 ++ s2)
 
 -- Da li ovo ima smisla??? 
-instance (Monoid s) => Monad (GameStateHistory s) where
+instance Monad (GameStateHistory s) where
     return = pure
     (GameStateHistory g) >>= f = GameStateHistory $ \s ->
         let
             (a, s1) = g s
             (GameStateHistory newGSH) = f a
-        in newGSH s1
+            (b, s2) = newGSH $ head s1
+        in (b, s2 `mappend` s1 )
 -------------------------------------------------------------------------
 applyMove :: (Int, Int) -> GameState (Tabla Igrac) Bool
 applyMove pozicija =  GameState $ \tabla -> let novaTabla = odigrajPotez tabla pozicija (koJeNaPotezu tabla)
                                         in (proveriZavrsnoStanje novaTabla, novaTabla)
 
-applyMoveH :: (Int, Int) -> GameStateHistory [Tabla Igrac] Bool
-applyMoveH pozicija = GameStateHistory $ \(tabla:table)-> let novaTabla = odigrajPotez tabla pozicija (koJeNaPotezu tabla)
-                                        in (proveriZavrsnoStanje novaTabla, novaTabla:tabla:table)
+applyMoveH :: (Int, Int) -> GameStateHistory (Tabla Igrac) Bool
+applyMoveH pozicija = GameStateHistory $ \tabla -> let novaTabla = odigrajPotez tabla pozicija (koJeNaPotezu tabla)
+                                        in (proveriZavrsnoStanje novaTabla, [novaTabla])
 
 -- ZASTO JE X BOOL A NE GAMESTATE?????????????
 -- Treba mi da mi ovo a u GameState bude zapravo tabla (i opciono moze True/False da li je zavrseno)
 
 kvaziMain :: (Bool, Tabla Igrac)
-kvaziMain = runState applyMoves mojaTabla
+kvaziMain = runState (applyMoves [(1, 1), (1, 0), (0, 0), (2, 1), (2, 2)]) mojaTabla
 
-applyMoves :: GameState (Tabla Igrac) Bool
-applyMoves = do
-    applyMove (1, 1)
+applyMoves :: [(Int, Int)] -> GameState (Tabla Igrac) Bool
+applyMoves pozicije = do
+        listaBulova <- mapM applyMove pozicije
+        return $ last listaBulova
+    {-
     applyMove (2, 0)
     applyMove (2, 2)
     applyMove (0, 2)
     applyMove (0, 0)
-
+    -}
 initialize :: GameStateHistory (Tabla Igrac) Bool
-initialize = GameStateHistory $ \xs -> (proveriZavrsnoStanje xs, xs)
+initialize = GameStateHistory $ \xs -> (proveriZavrsnoStanje xs, [xs])
+ 
+applyMovesH :: [(Int, Int)] -> GameStateHistory (Tabla Igrac) Bool
+applyMovesH pozicije = do 
+    initialize
+    foldM (\_ poz -> applyMoveH poz) False pozicije
+    --applyMoveH (0, 0)
+    --applyMoveH (2, 2)
 
-applyMovesH :: GameStateHistory [Tabla Igrac] Bool
-applyMovesH = do
-   -- initialize
-    applyMoveH (1, 1)
+applyMovesH1 :: GameStateHistory (Tabla Igrac) Bool
+applyMovesH1 = do
+    initialize
     applyMoveH (0, 0)
-    applyMoveH (2, 2)
+    applyMoveH (0, 1)
+    applyMoveH (0, 2)
+
+
 
 kvaziMainH :: (Bool, [Tabla Igrac])
-kvaziMainH = runStateHistory applyMovesH [mojaTabla]
+kvaziMainH = runStateHistory (applyMovesH [(1, 1), (1, 0), (0, 0), (2, 1), (2, 2)]) mojaTabla
+
+kvaziMainH1 :: (Bool, [Tabla Igrac])
+kvaziMainH1 = runStateHistory applyMovesH1 mojaTabla
 {-
 -- Definisem vrednosti za tablu
 newtype Field a = Field a
