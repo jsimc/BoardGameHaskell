@@ -8,6 +8,7 @@ import System.IO
 import Data.Char (digitToInt)
 import Data.Text.Internal.Builder.Int.Digits (digits)
 import GameState 
+import IksOks
 
 playerParser :: Parsec String () Igrac
 playerParser =
